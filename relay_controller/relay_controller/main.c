@@ -1,4 +1,4 @@
-#include <time.h>
+#include <util/delay.h>
 #include <stdarg.h>
 #include <stdbool.h>
 
@@ -6,9 +6,10 @@
 
 
 // Configurable Constants
-const double RELAY_POWER_TIME = 0.15;
-const double GROUND_FAULT_DELAY_TIME = 15.0;
-const double PROBATION_TIME = 10.0;
+// NOTE: Times are in milliseconds
+const double RELAY_POWER_TIME = 1500;
+const double GROUND_FAULT_DELAY_TIME = 15000;
+const double PROBATION_TIME = 1000;
 const int FAULT_LIMIT = 20;
 
 // Pins
@@ -22,6 +23,7 @@ const uint8_t OPENWRT_STATUS_PIN = (1 < 0x06); // Pin 4 (PA6)
 const uint8_t EBIKE_STATUS_PIN = (1 < 0x07); // Pin 5 (PA7)
 
 volatile uint8_t fault_count;
+int tc;
 
 enum State {
 	START,
@@ -111,20 +113,6 @@ void update_status_pins() {
 
 
 /************************************************************************/
-/*                           HELPER FUNCTIONS                           */
-/************************************************************************/
-
-
-/**
- * Returns the difference in terms of seconds, but decimal points hold
- * millisecond values
- */
-double get_time_diff(clock_t tic, clock_t toc) {
-	return (double)(toc - tic) / CLOCKS_PER_SEC;
-}
-
-
-/************************************************************************/
 /*                           STATE FUNCTIONS                            */
 /************************************************************************/
 
@@ -186,34 +174,34 @@ enum State relay_off(void) {
 enum State relay_enable(void) {
 	start_signal(RELAY_OFF_PIN);
 	
-	clock_t tic = clock();
-	clock_t toc = clock();
+	tc = 0;
 	
-	while (get_time_diff(tic, toc) < RELAY_POWER_TIME) {		
+	while (tc < RELAY_POWER_TIME) {		
 		if (!is_high(GFI_PIN)) {
 			stop_signal(RELAY_OFF_PIN);
 			
 			return SOFT_GROUND_FAULT;
 		}
 		
-		toc = clock();
+		_delay_ms(1);
+		tc++;
 	}
 	
 	stop_signal(RELAY_OFF_PIN);
 	
 	start_signal(RELAY_ON_PIN);
 	
-	tic = clock();
-	toc = clock();
+	tc = 0;
 	
-	while (get_time_diff(tic, toc) < RELAY_POWER_TIME) {
+	while (tc < RELAY_POWER_TIME) {
 		if (!is_high(GFI_PIN)) {
 			stop_signal(RELAY_ON_PIN);
 			
 			return SOFT_GROUND_FAULT;
 		}
 		
-		toc = clock();
+		_delay_ms(1);
+		tc++;
 	}
 	
 	stop_signal(RELAY_ON_PIN);
@@ -254,34 +242,34 @@ enum State relay_on(void) {
 enum State relay_disable(void) {
 	start_signal(RELAY_ON_PIN);
 	
-	clock_t tic = clock();
-	clock_t toc = clock();
+	tc = 0;
 	
-	while (get_time_diff(tic, toc) < RELAY_POWER_TIME) {		
+	while (tc < RELAY_POWER_TIME) {		
 		if (!is_high(GFI_PIN)) {
 			stop_signal(RELAY_ON_PIN);
 			
 			return SOFT_GROUND_FAULT;
 		}
 		
-		toc = clock();
+		_delay_ms(1);
+		tc++;
 	}
 	
 	stop_signal(RELAY_ON_PIN);
 	
 	start_signal(RELAY_OFF_PIN);
 	
-	tic = clock();
-	toc = clock();
+	tc = 0;
 	
-	while (get_time_diff(tic, toc) < RELAY_POWER_TIME) {
+	while (tc < RELAY_POWER_TIME) {
 		if (!is_high(GFI_PIN)) {
 			stop_signal(RELAY_OFF_PIN);
 			
 			return SOFT_GROUND_FAULT;
 		}
 		
-		toc = clock();
+		_delay_ms(1);
+		tc++;
 	}
 	
 	stop_signal(RELAY_OFF_PIN);
@@ -306,12 +294,7 @@ enum State soft_ground_fault(void) {
 	if (fault_count >= FAULT_LIMIT) {
 		return HARD_GROUND_FAULT;
 	} else {
-		clock_t tic = clock();
-		clock_t toc = clock();
-		
-		while (get_time_diff(tic, toc) < GROUND_FAULT_DELAY_TIME) {			
-			toc = clock();
-		}
+		_delay_ms(GROUND_FAULT_DELAY_TIME);
 		
 		return RELAY_ENABLE;
 	}
@@ -329,10 +312,9 @@ enum State soft_ground_fault(void) {
  *     - RELAY_ON
  */
 enum State probationary_relay_on(void) {
-	clock_t tic = clock();
-	clock_t toc = clock();
+	tc = 0;
 	
-	while (get_time_diff(tic, toc) < PROBATION_TIME) {
+	while (tc < PROBATION_TIME) {
 		if (!is_high(OPENWRT_PIN, EBIKE_PIN)) {			
 			fault_count = 0;
 			
@@ -342,6 +324,9 @@ enum State probationary_relay_on(void) {
 		if (!is_high(GFI_PIN)) {
 			return SOFT_GROUND_FAULT;
 		}
+		
+		_delay_ms(1);
+		tc++;
 	}
 	
 	fault_count = 0;
