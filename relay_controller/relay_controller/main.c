@@ -48,7 +48,7 @@ bool is_high(int num, ...) {
 	bool output;
 	int i;
 	
-	// Initializes list for num number of args
+	// Initializes list for num number of arguments
 	va_start(valist, num);
 	
 	output = true;
