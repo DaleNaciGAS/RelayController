@@ -1,3 +1,5 @@
+#define F_CPU 3330000UL
+
 #include <util/delay.h>
 #include <stdarg.h>
 #include <stdbool.h>
